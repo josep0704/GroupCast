@@ -31,7 +31,7 @@ if __name__ == "__main__":
         i +=1
         sleep(0.5)
 
-    sleep(3)
+    sleep(5)
 
     host.stop_actor('0')
     

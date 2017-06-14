@@ -12,7 +12,7 @@ IP = 'http://127.0.0.1:'
 
 class Peer(object):
     _tell = ['attach', 'init_start', 'announce_me', 'notify_join', 'multicast', 'bully', 'new_sequencer', 'bully',
-             'alive']
+             'alive','get_last_processed']
     _ask = ['get_sequencer', 'get_priority', 'vote', 'receive']
     _ref = ['new_sequencer']
 
@@ -132,10 +132,20 @@ class Peer(object):
         self.messages.append((msg, priority))
         print(self.id+' process_msg: '+ str(self.messages))
 
+    def get_last_processed(self, priority):
+        if self.last_processed < priority:
+             self.priority = priority
+        else:
+            self.priority = self.last_processed
+
     def new_sequencer(self, url):
         self.sequencer_url = url
         self.sequencer = self.lookup_cache(self.sequencer_url)
-        self.priority = self.last_processed
+        if self.url != self.sequencer_url:
+            self.sequencer.get_last_processed(self.last_processed)
+        else:
+            self.priority=self.last_processed
+
         print('SUCCESS: new_sequencer Member: ' + self.id + ' New Sequencer: ' + url)
         self.eleccions = False
 
@@ -149,9 +159,10 @@ class Peer(object):
             return ('DROP', self.sequencer_url)
 
     def set_sequencer(self):
+        self.new_sequencer(self.url)
         for mem in self.members:
             self.lookup_cache(mem).new_sequencer(self.url)
-        self.new_sequencer(self.url)
+        
 
     def bully(self):
         print('INFO: Starting elections from ' + self.id)

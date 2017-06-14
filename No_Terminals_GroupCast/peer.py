@@ -1,11 +1,14 @@
 from random import choice, randint
 from pyactor.context import  sleep, interval
 from pyactor.exceptions import TimeoutError
+from grup import *
+from printer import *
+from main import *
 
 
 class Peer(object):
     _tell = ['attach', 'init_start', 'announce_me', 'notify_join', 'multicast', 'bully', 'new_sequencer', 'bully',
-             'alive']
+             'alive','get_last_processed']
     _ask = ['get_sequencer', 'get_priority', 'vote', 'receive']
     _ref = ['new_sequencer']
 
@@ -32,8 +35,9 @@ class Peer(object):
                 self.printer.printer('ERROR lookup_url')
 
     def attach(self, url, printer):
-        self.printer = self.lookup_cache(printer)
-        self.grup = self.lookup_cache(url)
+        #self.printer = self.lookup_cache(printer)
+        self.printer = self.host.lookup_url(printer, Print)
+        self.grup = self.host.lookup_url(url, Grup)
         members_list = self.grup.join(self.url)
         self.members = list(set(members_list) - set([self.url]))
 
@@ -109,7 +113,7 @@ class Peer(object):
         if priority == (self.last_processed + 1):
             self.process_msg(msg, priority)
             self.wait_list.sort(key=lambda x: x[1])
-            self.printer.printer('id: '+self.id+' wait_list: '+str(self.wait_list))
+            
             for message, prty in self.wait_list:
                 if prty == (self.last_processed + 1):
                     self.process_msg(message, prty)
@@ -120,6 +124,7 @@ class Peer(object):
         for index in self.eliminated:
             self.wait_list.pop([x for x, y in enumerate(self.wait_list) if y[1] == index][0])
 
+        self.printer.printer('id: '+self.id+' wait_list: '+str(self.wait_list))
         del self.eliminated[:]
 
         return 'ALIVE'
@@ -129,10 +134,20 @@ class Peer(object):
         self.messages.append((msg, priority))
         self.printer.printer(self.id+' process_msg: '+ str(self.messages))
 
+    def get_last_processed(self, priority):
+    	if self.last_processed < priority:
+    		 self.priority = priority
+    	else:
+    		self.priority = self.last_processed
+
     def new_sequencer(self, url):
         self.sequencer_url = url
         self.sequencer = self.lookup_cache(self.sequencer_url)
-        self.priority = self.last_processed
+        if self.url != self.sequencer_url:
+        	self.sequencer.get_last_processed(self.last_processed)
+        else:
+        	self.priority=self.last_processed
+        	
         self.printer.printer('SUCCESS: new_sequencer Member: ' + self.id + ' New Sequencer: ' + url)
         self.eleccions = False
 
@@ -146,9 +161,10 @@ class Peer(object):
             return ('DROP', self.sequencer_url)
 
     def set_sequencer(self):
+    	self.new_sequencer(self.url)
         for mem in self.members:
             self.lookup_cache(mem).new_sequencer(self.url)
-        self.new_sequencer(self.url)
+        
 
     def bully(self):
         sleep(4)
